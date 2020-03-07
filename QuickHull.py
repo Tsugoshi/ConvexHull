@@ -24,6 +24,16 @@ def dotProduct(pointA, pointB):
     return pointA.x*pointB.x + pointA.y*pointB.y + pointA.z*pointB.z
 
 
+def set_correct_normal(plane,possible_internal_points): #Make the orientation of Normal correct
+    for point in possible_internal_points:
+        dist = dotProduct(plane.normal,point - plane.pointA)
+        if dist != 0 :
+            if(dist > 10**-10):
+                plane.normal.x = -1*plane.normal.x
+                plane.normal.y = -1*plane.normal.y
+                plane.normal.z = -1*plane.normal.z
+                return
+
 class Point:
     def __init__(self, x=None, y=None, z=None):
         self.x = x
@@ -39,9 +49,9 @@ class Point:
         """
         calculates Euqlidean distance to 0,0,0
         """
-        return length(self, Point(0,0,0,))
+        return self.distToPoint(Point(0,0,0,))
 
-    def length(self, other):
+    def distToPoint(self, other):
         """
         Calculates euqlidean distance to other point
         """
@@ -58,7 +68,7 @@ class Edge:
     def __init__(self, pointA, pointB):
         self.pointA = pointA
         self.pointB = pointB
-        self.length = pointA.length(pointB) 
+        self.length = pointA.distToPoint(pointB)
 
     def distToPoint(self, pointX):
         vecAX = pointX - self.pointA
@@ -84,6 +94,7 @@ class Plane:
         self.edge1 = Edge(pointA, pointB)
         self.edge2 = Edge(pointB, pointC)
         self.edge3 = Edge(pointC, pointA)
+        self.pointsToCheck = []
 
     def calcNorm(self):
         """
@@ -101,8 +112,20 @@ class Plane:
         self.distance = dotProduct(self.normal, self.pointA)
 
     def distToPoint(self, pointX):
-		return (dotProduct(self.normal,pointX - self.pointA))
+        return (dotProduct(self.normal,pointX - self.pointA))
 
+    def calculatePointsToCheck(self, cloud):
+        ret = []
+        if cloud or len(cloud)>0:
+            for point in cloud:
+                if self.distToPoint(point) > 10**-10:
+                    self.pointsToCheck.append(point)
+                else:
+                    ret.append(point)
+        return ret
+
+    def getEdges(self):
+        return[self.edge1, self.edge2, self.edge3]
 
 def CreateSimplex(cloud):
     """
@@ -147,7 +170,7 @@ def CreateSimplex(cloud):
 
     # jeśli pinkty są w 0 wumiarach, to mamy tylko jeden punkt, bez sensu coś liczyć, zwracam wymiar i jedyny punkt
     if dim == 0:
-        return 0, cloud[0], None, None, None
+        return 0, cloud[0]
     #znajdź początkową krawędź, tam gdzie odległość między maxymalnymi punktami jest największa
     max_edge = Edge(maxes[0], maxes[1])
     for point1 in maxes:
@@ -157,7 +180,7 @@ def CreateSimplex(cloud):
 
     #jeżeli wymiar to 1, to nic dalej nie stworzymy, zwracam wymiar i wierzchołek/prostą
     if dim == 1:
-        return 1, max_edge.pointA, max_edge.pointB, None, None
+        return 1, max_edge
 
     #W chumrze punktów znajdź punkt najbardziej odległy od krawędzi
     maxEdgeDist = 0
@@ -167,11 +190,11 @@ def CreateSimplex(cloud):
             maxDistEdgePoint = point
             maxEdgeDist = tmpDist
 
-    initialPlane = Plane(max_edge[0], max_edge[1], maxDistEdgePoint)
+    initialPlane = Plane(max_edge.pointA, max_edge.pointB, maxDistEdgePoint)
 
     #jeśli wymiar jest 2, to nie stworzymy czworościanu. Zwracam wymiar i startowy plane, bo można z niego tworzyć otoczkę w 2d
     if dim == 2:
-        return 2, initialPlane.PointA, initialPlane.pointB, initialPlane.pointC, None
+        return 2, initialPlane
 
     #Znajdź punkt najbardziej odległy od utworzonego planu
 
@@ -182,15 +205,125 @@ def CreateSimplex(cloud):
             maxDistPlanePoint = point
             maxPlaneDist = tmpDist
 
-    return 3, initialPlane.PointA, initialPlane.pointB, initialPlane.pointC, maxDistPlanePoint
+    return 3, initialPlane.pointA, initialPlane.pointB, initialPlane.pointC, maxDistPlanePoint
 
+
+def calcHorizon(workingPlane, visitedPlanes, eyePoint, edgeList):
+
+    if workingPlane.distToPoint(eyePoint) > 10 ** -10:
+        visitedPlanes.Append(workingPlane)
+        edges = workingPlane.getEdges()
+
+        # Znajdź sąsiadujące płaszczyzny
+        for edge in edges:
+            for plane in hullPlanes:
+                if (plane != workingPlane) and (edge in plane.getEdges()):
+                    neighbour = plane
+
+            #jeżeli nie sprawdzaliśmy jeszcze sąsiadującej płaszczyzny to szukamy horyzontu z jej perspektywy
+            if neighbour not in visitedPlanes:
+                end = calcHorizon(neighbour, visitedPlanes, eyePoint, edgeList)
+                if end:
+                    edgeList.append(edge)
+        return False
+    else:
+        return True
     
 
+cloud = []
+cloud.append(Point(0,0,0))
+cloud.append(Point(0,0,1))
+cloud.append(Point(0,1,0))
+cloud.append(Point(0,1,1))
+cloud.append(Point(1,0,0))
+cloud.append(Point(1,0,1))
+cloud.append(Point(1,1,0))
+cloud.append(Point(1,1,1))
 
 
 
+ret = CreateSimplex(cloud)
+dim = ret[0]
+if dim == 0:
+    print("Podano tylko jeden punkt")
+    exit()
+if dim == 1:
+    print("Wszytkie punkty leżą na prostej")
+    exit()
+if dim == 2:
+    print("Wszystkie punkty leżą na płaszczyźnie")
+    exit()
+if dim == 3:
+    point1 = ret[1]
+    point2 = ret[2]
+    point3 = ret[3]
+    point4 = ret[4]
+    print("Wyznaczyłem 4 punkty startowego czworościanu " + str(point1) + " " + str(point2) + " " + str(point3) + " " + str(point4))
 
-        
-    
+    #startowe płaszczyzny
+    plane1 = Plane(point1, point2, point3)
+    plane3 = Plane(point1, point2, point4)
+    plane2 = Plane(point2, point3, point4)
+    plane4 = Plane(point3, point1, point4)
 
-    
+    internalPoints = [point1,point2,point3,point4]
+    set_correct_normal(plane1, internalPoints)
+    set_correct_normal(plane2, internalPoints)
+    set_correct_normal(plane3, internalPoints)
+    set_correct_normal(plane4, internalPoints)
+
+    cloud = plane1.calculatePointsToCheck(cloud)
+    cloud = plane2.calculatePointsToCheck(cloud)
+    cloud = plane3.calculatePointsToCheck(cloud)
+    cloud = plane4.calculatePointsToCheck(cloud)
+
+    hullPlanes = []
+    hullPlanes.append(plane1)
+    hullPlanes.append(plane2)
+    hullPlanes.append(plane3)
+    hullPlanes.append(plane4)
+
+    AnyLeft = True
+
+    while AnyLeft:
+        AnyLeft = False
+        for workingPlane in hullPlanes:
+            if len(workingPlane.pointsToCheck)>0:
+                AnyLeft = True
+                eyePointDist = 0
+                #find eye point
+                for point in workingPlane.pointsToCheck:
+                    tempDist = workingPlane.distToPoint(point)
+                    if tempDist > eyePointDist:
+                        eyePointDist = tempDist
+                        eyePoint = point
+
+                edgeList = set()
+                visitedPlanes =[]
+
+                calcHorizon(workingPlane, visitedPlanes, eyePoint, edgeList)
+
+                pointsToCheck = set()
+                #All visited
+                for internalPlane in visitedPlanes:
+                    hullPlanes.Remove(visitedPlanes)
+                    pointsToCheck.union(internalPlane.pointsToCheck)
+
+                for edge in edgeList:
+                    newPlane = Plane(edge.pointA, edge.PointB, eyePoint)
+                    set_correct_normal(newPlane, internalPoints)
+                    pointsToCheck = newPlane.calculatePointsToCheck(pointsToCheck)
+                    hullPlanes.append(newPlane)
+
+    hullPoints = set()
+    for hullPlane in hullPlanes:
+        hullPoints.append(hullPlane.pointA)
+        hullPoints.append(hullPlane.pointB)
+        hullPoints.append(hullPlane.pointC)
+
+    print("punkty w otoczce")
+    for hullPoint in hullPoints:
+        print(str(hullPoint))
+        print(str("\n"));
+
+
