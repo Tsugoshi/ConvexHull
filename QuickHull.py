@@ -1,9 +1,6 @@
 import math
 import sys
 
-#https://github.com/swapnil96/Convex-hull/blob/master/hull.py
-
-
 def cross(pointA, pointB):
     """
     cross product
@@ -63,6 +60,9 @@ class Point:
     def __eq__(self, other):
         return self.x == other.x and self.y == other.y and self.z == other.z
 
+    def __hash__(self):
+        return hash((self.x, self.y, self.z))
+
 
 class Edge:
     def __init__(self, pointA, pointB):
@@ -79,6 +79,17 @@ class Edge:
         else:
             return crossVec.length()/vecAB.length()
 
+    def __eq__(self, other):
+        if ((self.pointA == other.pointA)and(self.pointB == other.pointB)) or ((self.pointB == other.pointA)and(self.pointA == other.pointB)):
+            return True
+        else:
+            return False
+
+    def __hash__(self):
+        return hash((self.pointA, self.pointB))
+
+    def __str__(self):
+        return "Edge " + "A: " + str(self.pointA) + "-B: " + str(self.pointB)
 
 
 
@@ -126,6 +137,18 @@ class Plane:
 
     def getEdges(self):
         return[self.edge1, self.edge2, self.edge3]
+
+    def __eq__(self, other):
+        if (self.pointA == other.pointA or self.pointA == other.pointB or self.pointA == other.pointC) and (self.pointB == other.pointA or self.pointB == other.pointB or self.pointB == other.pointC) and (self.pointC == other.pointA or self.pointC == other.pointB or self.pointC == other.pointC):
+            return True
+        else:
+            return False
+
+    def __hash__(self):
+        return hash((self.pointA, self.pointB, self.pointC))
+
+    def __str__(self):
+        return "Plane: " + "A: " + str(self.pointA) + "B: " + str(self.pointB) + "C: " + str(self.pointC)
 
 def CreateSimplex(cloud):
     """
@@ -208,27 +231,29 @@ def CreateSimplex(cloud):
     return 3, initialPlane.pointA, initialPlane.pointB, initialPlane.pointC, maxDistPlanePoint
 
 
-def calcHorizon(workingPlane, visitedPlanes, eyePoint, edgeList):
+def calcHorizon(workingPlane, visitedPlanes, eyePoint, edgeList, hullPlanes):
 
     if workingPlane.distToPoint(eyePoint) > 10 ** -10:
-        visitedPlanes.Append(workingPlane)
+        visitedPlanes.append(workingPlane)
         edges = workingPlane.getEdges()
 
-        # Znajdź sąsiadujące płaszczyzny
-        for edge in edges:
-            for plane in hullPlanes:
-                if (plane != workingPlane) and (edge in plane.getEdges()):
-                    neighbour = plane
-
+        # dla każdej krawędzi znajdź sąsiadujące płaszczyzny
+        for edge in edges:             
+            neighbour = findNeighbour(workingPlane, edge, hullPlanes)
             #jeżeli nie sprawdzaliśmy jeszcze sąsiadującej płaszczyzny to szukamy horyzontu z jej perspektywy
-            if neighbour not in visitedPlanes:
-                end = calcHorizon(neighbour, visitedPlanes, eyePoint, edgeList)
+            if neighbour and neighbour not in visitedPlanes:
+                end = calcHorizon(neighbour, visitedPlanes, eyePoint, edgeList, hullPlanes)
                 if end:
-                    edgeList.append(edge)
+                    edgeList.add(edge)
         return False
     else:
         return True
     
+def findNeighbour(workingPlane, edge, hullPlanes):
+    for plane in hullPlanes:
+        edges = plane.getEdges()
+        if (plane != workingPlane) and (edge in edges):
+                    return plane
 
 cloud = []
 cloud.append(Point(0,0,0))
@@ -239,6 +264,8 @@ cloud.append(Point(1,0,0))
 cloud.append(Point(1,0,1))
 cloud.append(Point(1,1,0))
 cloud.append(Point(1,1,1))
+cloud.append(Point(0.5, 0.5, 0.5))
+cloud.append(Point(2,1,0.5))
 
 
 
@@ -301,29 +328,28 @@ if dim == 3:
                 edgeList = set()
                 visitedPlanes =[]
 
-                calcHorizon(workingPlane, visitedPlanes, eyePoint, edgeList)
+                calcHorizon(workingPlane, visitedPlanes, eyePoint, edgeList, hullPlanes)
 
                 pointsToCheck = set()
                 #All visited
                 for internalPlane in visitedPlanes:
-                    hullPlanes.Remove(visitedPlanes)
+                    hullPlanes.remove(internalPlane)
                     pointsToCheck.union(internalPlane.pointsToCheck)
 
                 for edge in edgeList:
-                    newPlane = Plane(edge.pointA, edge.PointB, eyePoint)
+                    newPlane = Plane(edge.pointA, edge.pointB, eyePoint)
                     set_correct_normal(newPlane, internalPoints)
                     pointsToCheck = newPlane.calculatePointsToCheck(pointsToCheck)
                     hullPlanes.append(newPlane)
 
     hullPoints = set()
     for hullPlane in hullPlanes:
-        hullPoints.append(hullPlane.pointA)
-        hullPoints.append(hullPlane.pointB)
-        hullPoints.append(hullPlane.pointC)
+        hullPoints.add(hullPlane.pointA)
+        hullPoints.add(hullPlane.pointB)
+        hullPoints.add(hullPlane.pointC)
 
     print("punkty w otoczce")
     for hullPoint in hullPoints:
         print(str(hullPoint))
-        print(str("\n"));
 
 
