@@ -264,8 +264,12 @@ cloud.append(Point(1,0,0))
 cloud.append(Point(1,0,1))
 cloud.append(Point(1,1,0))
 cloud.append(Point(1,1,1))
-cloud.append(Point(0.5, 0.5, 0.5))
 cloud.append(Point(2,1,0.5))
+cloud.append(Point(2,0.5,1))
+cloud.append(Point(2,5,1))
+cloud.append(Point(2,3,3))
+cloud.append(Point(5,3,1))
+cloud.append(Point(2,0.5,5))
 
 
 
